@@ -1,0 +1,41 @@
+# 环境变量（包含 API Key，绝不提交）
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 输出文件
+output/
+reports/
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# pytest
+.pytest_cache/
+
+# mypy / ruff
+.mypy_cache/
+.ruff_cache/
+
+# vibe_coding
+.claude/

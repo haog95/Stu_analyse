@@ -1,0 +1,130 @@
+# 学生多维画像分析系统 - 全局配置
+# 注意：所有敏感信息（API Key）通过 .env 文件管理，本文件不包含任何密钥
+
+# 数据路径
+data:
+  portrait_dir: "data/"
+  output_dir: "output/"
+  reports_dir: "reports/"
+
+# 学生ID列名映射（不同CSV文件使用不同的ID列名）
+id_column_mapping:
+  "画像1_课堂参与度与专注力评级结果.csv": "student_id"
+  "画像2_学习投入度与自律性.csv": "student_id"
+  "画像3_挂科退学高危预警.csv": "XH"
+  "画像4_学习轨迹退化预警画像.csv": "学号"
+  "画像6_规律性生活.csv": "student_id"
+  "画像7_身体素质与意志力.csv": "XH"
+  "画像8_网络依赖.csv": "XH"
+  "画像9_综合竞争力.csv": "XH"
+  "画像10_就业竞争力与匹配.csv": "SID"
+  "群体画像最终聚类结果.csv": "student_id"
+
+# 标准化后的学生ID列名
+unified_id_column: "student_id"
+
+# 风险等级阈值
+risk_thresholds:
+  fail_probability:
+    severe: 0.9
+    high: 0.5
+    medium: 0.2
+  degradation_score:
+    severe: 0.8
+    high: 0.5
+    medium: 0.3
+  addiction_index:
+    severe: 0.8
+    high: 0.6
+    medium: 0.3
+
+# ============================================================
+# LLM 配置
+# ============================================================
+# 提供商选择: openai / deepseek / zhipu / moonshot / claude / local
+# API Key 通过 .env 文件配置，切勿在此填写密钥
+#
+# 可用环境变量:
+#   OPENAI_API_KEY        - OpenAI 官方或兼容 API Key
+#   DEEPSEEK_API_KEY      - DeepSeek API Key
+#   ZHIPU_API_KEY         - 智谱 (GLM) API Key
+#   MOONSHOT_API_KEY      - Moonshot (月之暗面) API Key
+#   ANTHROPIC_API_KEY     - Anthropic Claude API Key
+#
+# 切换提供商只需修改 provider 字段，无需改动其他代码
+# ============================================================
+
+llm:
+  # 当前使用的提供商（从下方选择一个）
+  provider: "openai"
+
+  # ----------------------------------------------------------
+  # OpenAI 官方
+  # ----------------------------------------------------------
+  openai:
+    base_url: "https://xh.v1api.cc/v1/"
+    model: "gpt-5.4"
+    temperature: 0.7
+    max_tokens: 8000
+    # API Key 读取优先级: 环境变量 OPENAI_API_KEY > .env 文件
+
+  # ----------------------------------------------------------
+  # DeepSeek（国内直连，性价比高）
+  # ----------------------------------------------------------
+  deepseek:
+    base_url: "https://api.deepseek.com/v1"
+    model: "deepseek-chat"
+    temperature: 0.7
+    max_tokens: 8000
+    # API Key: 环境变量 DEEPSEEK_API_KEY
+
+  # ----------------------------------------------------------
+  # 智谱 GLM（国内直连）
+  # ----------------------------------------------------------
+  zhipu:
+    base_url: "https://open.bigmodel.cn/api/paas/v4"
+    model: "glm-5-turbo"
+    temperature: 0.7
+    max_tokens: 8000
+    # API Key: 环境变量 ZHIPU_API_KEY
+
+  # ----------------------------------------------------------
+  # Moonshot / Kimi（国内直连，长上下文）
+  # ----------------------------------------------------------
+  moonshot:
+    base_url: "https://api.moonshot.cn/v1"
+    model: "moonshot-v1-8k"
+    temperature: 0.7
+    max_tokens: 8000
+    # API Key: 环境变量 MOONSHOT_API_KEY
+
+  # ----------------------------------------------------------
+  # Anthropic Claude
+  # ----------------------------------------------------------
+  claude:
+    base_url: "https://api.anthropic.com"
+    model: "claude-sonnet-4-20250514"
+    temperature: 0.7
+    max_tokens: 8000
+    # API Key: 环境变量 ANTHROPIC_API_KEY
+
+  # ----------------------------------------------------------
+  # 本地模型（Ollama，无需 API Key）
+  # ----------------------------------------------------------
+  local:
+    base_url: "http://localhost:11434"
+    model: "qwen2.5:14b"
+    # 无需 API Key
+
+# 知识库配置
+knowledge_base:
+  embedding_model: "shibing624/text2vec-base-chinese"
+  chunk_size: 500
+  chunk_overlap: 50
+  top_k: 3
+
+# 报告生成配置
+report:
+  min_word_count: 2000
+  batch_size: 10
+  max_workers: 3
