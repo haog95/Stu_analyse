@@ -27,7 +27,11 @@ def _load_dotenv():
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, value = line.partition("=")
-            key, value = key.strip(), value.strip()
+            key = key.strip()
+            value = value.strip()
+            # 去除引号包裹
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                value = value[1:-1]
             if key and value and key not in os.environ:
                 os.environ[key] = value
 
@@ -94,15 +98,24 @@ class LLMClient:
     Claude 使用独立的 Anthropic SDK。本地模型使用 Ollama REST API。
     """
 
+    # 最大重试次数
+    MAX_RETRIES = 3
+    # 默认请求超时（秒）：连接超时, 读取超时
+    DEFAULT_TIMEOUT = (15, 300)
+
     def __init__(self, config: dict = None):
         self.config = config or {}
         self.provider = self.config.get("provider", "openai")
-        self._client = None
-
-    # 最大重试次数
-    MAX_RETRIES = 3
-    # 请求超时（秒）：连接超时, 读取超时
-    TIMEOUT = (15, 120)
+        self._openai_client = None
+        self._claude_client = None
+        # 从配置读取超时，未配置则使用默认值
+        timeout_cfg = self.config.get("timeout")
+        if isinstance(timeout_cfg, (list, tuple)) and len(timeout_cfg) == 2:
+            self.TIMEOUT = tuple(timeout_cfg)
+        elif isinstance(timeout_cfg, (int, float)):
+            self.TIMEOUT = (timeout_cfg, timeout_cfg)
+        else:
+            self.TIMEOUT = self.DEFAULT_TIMEOUT
 
     # ----------------------------------------------------------
     # 统一入口
@@ -172,8 +185,8 @@ class LLMClient:
     # ----------------------------------------------------------
     def _get_openai_compatible_client(self):
         """创建 OpenAI 兼容客户端"""
-        if self._client is not None:
-            return self._client
+        if self._openai_client is not None:
+            return self._openai_client
 
         from openai import OpenAI
 
@@ -186,13 +199,12 @@ class LLMClient:
             # 兜底：从默认配置中取
             base_url = self.config.get("openai", {}).get("base_url", "https://api.openai.com/v1")
 
-        # 设置连接超时 15s，读取超时 120s
-        self._client = OpenAI(
+        self._openai_client = OpenAI(
             api_key=api_key,
             base_url=base_url,
             timeout=self.TIMEOUT,
         )
-        return self._client
+        return self._openai_client
 
     def _call_openai_compatible(self, system_prompt: str, user_prompt: str) -> str:
         """调用 OpenAI 兼容 API（OpenAI / DeepSeek / 智谱 / Moonshot）"""
@@ -216,28 +228,41 @@ class LLMClient:
 
         choice = response.choices[0]
         finish_reason = getattr(choice, "finish_reason", None)
+        content = choice.message.content
+
+        if finish_reason == "length":
+            if content and content.strip():
+                print(f"[LLM 警告] 输出被截断 (finish_reason=length), "
+                      f"已生成 {len(content)} 字符, provider={self.provider}。"
+                      f"可尝试增大 max_tokens (当前: {provider_config.get('max_tokens', 8000)})")
+                return content
+            else:
+                print(f"[LLM 警告] finish_reason=length 但内容为空, "
+                      f"provider={self.provider}, model={provider_config.get('model', 'gpt-4')}。"
+                      f"可能原因: 输入过长超出上下文窗口, 或 max_tokens 不足。"
+                      f"当前 max_tokens={provider_config.get('max_tokens', 8000)}")
+                return ""
 
         if finish_reason and finish_reason != "stop":
             print(f"[LLM 警告] 非正常结束: finish_reason={finish_reason}, "
                   f"provider={self.provider}")
 
-        content = choice.message.content
         return content if content else ""
 
     # ----------------------------------------------------------
     # Claude（独立 SDK）
     # ----------------------------------------------------------
     def _get_claude_client(self):
-        if self._client is not None:
-            return self._client
+        if self._claude_client is not None:
+            return self._claude_client
         import anthropic
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         base_url = self.config.get("claude", {}).get("base_url")
         kwargs = {"api_key": api_key, "timeout": self.TIMEOUT}
         if base_url:
             kwargs["base_url"] = base_url
-        self._client = anthropic.Anthropic(**kwargs)
-        return self._client
+        self._claude_client = anthropic.Anthropic(**kwargs)
+        return self._claude_client
 
     def _call_claude(self, system_prompt: str, user_prompt: str) -> str:
         client = self._get_claude_client()
